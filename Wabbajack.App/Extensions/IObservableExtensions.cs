@@ -2,9 +2,6 @@ using System;
 using System.Linq.Expressions;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
-using System.Reactive.Subjects;
-using System.Threading.Tasks;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using ReactiveUI;
 using Wabbajack.App.Controls;
 using Wabbajack.Paths;
@@ -45,7 +42,7 @@ public static class IObservableExtensions
 
     public static IDisposable BindFileSelectionBox<TViewModel>(this FileSelectionBox box, TViewModel viewModel,
         Expression<Func<TViewModel, AbsolutePath>> vmProperty)
-    where TViewModel: class?
+        where TViewModel : class?
     {
         var disposables = new CompositeDisposable();
 
@@ -57,7 +54,7 @@ public static class IObservableExtensions
             .Where(p => p != default)
             .Subscribe(box.Load)
             .DisposeWith(disposables);
-        
+
         return disposables;
     }
 }

@@ -1,15 +1,10 @@
-using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
-using System.Reactive.Disposables;
-using System.Reactive.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.ReactiveUI;
 using Avalonia.Threading;
-using Microsoft.Extensions.DependencyInjection;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using Wabbajack.Paths;
@@ -29,6 +24,20 @@ public partial class FileSelectionBox : ReactiveUserControl<FileSelectionBoxView
     {
         InitializeComponent();
         SelectButton.Command = ReactiveCommand.CreateFromTask(ShowDialog);
+    }
+
+    [Reactive] public AbsolutePath SelectedPath { get; set; }
+
+    public string AllowedExtensions
+    {
+        get => GetValue(AllowedExtensionsProperty);
+        set => SetValue(AllowedExtensionsProperty, value);
+    }
+
+    public bool SelectFolder
+    {
+        get => GetValue(SelectFolderProperty);
+        set => SetValue(SelectFolderProperty, value);
     }
 
     private async Task ShowDialog()
@@ -52,7 +61,7 @@ public partial class FileSelectionBox : ReactiveUserControl<FileSelectionBoxView
                 Title = "Select a file",
                 Filters = new List<FileDialogFilter>
                 {
-                    new FileDialogFilter {Extensions = extensions, Name = "*"}
+                    new() {Extensions = extensions, Name = "*"}
                 }
             };
             var results = await dialog.ShowAsync(App.MainWindow);
@@ -61,24 +70,10 @@ public partial class FileSelectionBox : ReactiveUserControl<FileSelectionBoxView
         }
     }
 
-    [Reactive]
-    public AbsolutePath SelectedPath { get; set; }
-
-    public string AllowedExtensions
-    {
-        get => GetValue(AllowedExtensionsProperty);
-        set => SetValue(AllowedExtensionsProperty, value);
-    }
-
-    public bool SelectFolder
-    {
-        get => GetValue(SelectFolderProperty);
-        set => SetValue(SelectFolderProperty, value);
-    }
-
     public void Load(AbsolutePath path)
     {
-        Dispatcher.UIThread.Post(() => { 
+        Dispatcher.UIThread.Post(() =>
+        {
             TextBox.Text = path.ToString();
             SelectedPath = path;
         });

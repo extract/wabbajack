@@ -1,7 +1,6 @@
 using System;
 using System.Reactive.Linq;
 using Avalonia.Threading;
-using ReactiveUI;
 
 namespace Wabbajack.App.Extensions;
 

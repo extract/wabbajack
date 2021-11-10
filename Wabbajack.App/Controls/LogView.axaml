@@ -11,7 +11,7 @@
         <Border Grid.Row="1">
             <ItemsRepeater x:Name="Messages">
                 <ItemsRepeater.Layout>
-                    <StackLayout></StackLayout>
+                    <StackLayout />
                 </ItemsRepeater.Layout>
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate>

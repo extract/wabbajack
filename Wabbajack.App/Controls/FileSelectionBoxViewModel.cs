@@ -40,7 +40,7 @@ public class FileSelectionBoxViewModel : ViewModelBase
                         Title = "Select a file",
                         Filters = new List<FileDialogFilter>
                         {
-                            new FileDialogFilter {Extensions = extensions, Name = "*"}
+                            new() {Extensions = extensions, Name = "*"}
                         }
                     };
                     var results = await dialog.ShowAsync(App.MainWindow);

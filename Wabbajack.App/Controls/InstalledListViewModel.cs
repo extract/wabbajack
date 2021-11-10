@@ -32,15 +32,6 @@ public class InstalledListViewModel : ViewModelBase
         LoadImage(imageCache).FireAndForget();
     }
 
-    public async Task LoadImage(ImageCache cache)
-    {
-        var img = await cache.From(_setting.Install.Combine("modlist-image.png"), 270, 150);
-        Dispatcher.UIThread.Post(() =>
-        {
-            Image = img;
-        });
-    }
-
     public AbsolutePath InstallPath => _setting.Install;
 
     public string Name => _setting.Metadata?.Title ?? "";
@@ -49,7 +40,12 @@ public class InstalledListViewModel : ViewModelBase
 
     public string Author => _setting.Metadata?.Author ?? "";
     public ReactiveCommand<Unit, Unit> Play { get; }
-    
-    [Reactive]
-    public IBitmap Image { get; set; }
+
+    [Reactive] public IBitmap Image { get; set; }
+
+    public async Task LoadImage(ImageCache cache)
+    {
+        var img = await cache.From(_setting.Install.Combine("modlist-image.png"), 270, 150);
+        Dispatcher.UIThread.Post(() => { Image = img; });
+    }
 }

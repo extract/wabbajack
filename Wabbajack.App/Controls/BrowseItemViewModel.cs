@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Reactive;
@@ -42,11 +41,11 @@ public class BrowseItemViewModel : ViewModelBase, IActivatableViewModel
     private readonly IResource<DownloadDispatcher> _downloadLimiter;
     private readonly DTOSerializer _dtos;
     private readonly FileHashCache _hashCache;
+    private readonly ImageCache _imageCache;
     private readonly IResource<HttpClient> _limiter;
     private readonly ILogger _logger;
     private readonly ModlistMetadata _metadata;
     private readonly ModListSummary _summary;
-    private readonly ImageCache _imageCache;
 
     public BrowseItemViewModel(ModlistMetadata metadata, ModListSummary summary, HttpClient client,
         IResource<HttpClient> limiter,
@@ -101,7 +100,10 @@ public class BrowseItemViewModel : ViewModelBase, IActivatableViewModel
 
     public string Title => _metadata.ImageContainsTitle ? "" : _metadata.Title;
     public string MachineURL => _metadata.Links.MachineURL;
-    public string Description => State == ModListState.Disabled ? "Disabled: Under Construction \n " + _metadata.Description : _metadata.Description;
+
+    public string Description => State == ModListState.Disabled
+        ? "Disabled: Under Construction \n " + _metadata.Description
+        : _metadata.Description;
 
     public Uri ImageUri => new(_metadata.Links.ImageUri);
 
@@ -175,7 +177,7 @@ public class BrowseItemViewModel : ViewModelBase, IActivatableViewModel
     {
         if (_metadata.ForceDown || _summary.HasFailures)
             return ModListState.Disabled;
-        
+
         var file = ModListLocation;
         if (!file.FileExists())
             return ModListState.NotDownloaded;

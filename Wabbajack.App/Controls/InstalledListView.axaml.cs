@@ -14,7 +14,7 @@ public partial class InstalledListView : ReactiveUserControl<InstalledListViewMo
         {
             this.OneWayBind(ViewModel, vm => vm.Image, view => view.ListImage.Source)
                 .DisposeWith(disposables);
-            
+
             this.OneWayBind(ViewModel, vm => vm.Name, view => view.Title.Text)
                 .DisposeWith(disposables);
 

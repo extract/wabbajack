@@ -34,56 +34,55 @@
     <Style Selector="controls|TagView TextBlock">
         <Setter Property="Foreground" Value="#121212" />
     </Style>
-    
+
     <Style Selector="Border.Settings">
-        <Setter Property="BorderThickness" Value="2"></Setter>
-        <Setter Property="BorderBrush" Value="DarkGray"></Setter>
-        <Setter Property="CornerRadius" Value="4"></Setter>
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="BorderBrush" Value="DarkGray" />
+        <Setter Property="CornerRadius" Value="4" />
     </Style>
-    
+
     <Style Selector="Border.StandardBorder">
-        <Setter Property="BorderThickness" Value="2"></Setter>
-        <Setter Property="BorderBrush" Value="DarkGray"></Setter>
-        <Setter Property="CornerRadius" Value="4"></Setter>
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="BorderBrush" Value="DarkGray" />
+        <Setter Property="CornerRadius" Value="4" />
     </Style>
-    
+
     <Style Selector="Border.Settings Grid">
-        <Setter Property="Margin" Value="4"></Setter>
+        <Setter Property="Margin" Value="4" />
     </Style>
-    
+
     <Style Selector="Grid.LogView ItemsControl">
-        <Setter Property="Margin" Value="4"></Setter>
+        <Setter Property="Margin" Value="4" />
     </Style>
-    
+
     <Style Selector="Grid.LogView > TextBlock.Title">
-        <Setter Property="FontWeight" Value="Bold"></Setter>
-        <Setter Property="FontSize" Value="18"></Setter>
-        <Setter Property="Margin" Value="4"/>
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="Margin" Value="4" />
     </Style>
-    
+
     <Style Selector="Grid.LogView > Border">
-        <Setter Property="Margin" Value="4"/>
-        <Setter Property="BorderThickness" Value="2"></Setter>
-        <Setter Property="BorderBrush" Value="DarkGray"></Setter>
-        <Setter Property="CornerRadius" Value="4"></Setter>
+        <Setter Property="Margin" Value="4" />
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="BorderBrush" Value="DarkGray" />
+        <Setter Property="CornerRadius" Value="4" />
     </Style>
-    
+
     <Style Selector=".InstalledList Border">
-        <Setter Property="BorderThickness" Value="2"></Setter>
-        <Setter Property="BorderBrush" Value="DarkGray"></Setter>
-        <Setter Property="CornerRadius" Value="4"></Setter>
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="BorderBrush" Value="DarkGray" />
+        <Setter Property="CornerRadius" Value="4" />
     </Style>
-    
+
     <Style Selector=".InstalledList TextBlock">
-        <Setter Property="FontWeight" Value="Bold"></Setter>
-        <Setter Property="FontSize" Value="18"></Setter>
-        <Setter Property="Margin" Value="4"/>
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="Margin" Value="4" />
     </Style>
-    
+
     <Style Selector="Button.InstalledList">
-        <Setter Property="Margin" Value="4"></Setter>
+        <Setter Property="Margin" Value="4" />
     </Style>
-    
 
 
 </Styles>
