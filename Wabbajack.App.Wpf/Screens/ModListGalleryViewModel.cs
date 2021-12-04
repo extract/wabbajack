@@ -1,14 +1,27 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reactive;
 using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using System.Windows.Input;
+using DynamicData;
 using DynamicData.Binding;
+using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
+using Wabbajack.App.Wpf.Controls;
+using Wabbajack.App.Wpf.Extensions;
 using Wabbajack.App.Wpf.Interfaces;
 using Wabbajack.App.Wpf.Messages;
 using Wabbajack.App.Wpf.Support;
 using Wabbajack.App.Wpf.ViewModels;
+using Wabbajack.Common;
+using Wabbajack.Downloaders.GameFile;
+using Wabbajack.DTOs;
+using Wabbajack.Hashing.xxHash64;
+using Wabbajack.Networking.WabbajackClientApi;
+using ReactiveUIExt = Wabbajack.App.Wpf.Extensions.ReactiveUIExt;
 
 namespace Wabbajack.App.Wpf.Screens
 {
@@ -16,12 +29,12 @@ namespace Wabbajack.App.Wpf.Screens
     {
         public ModListGalleryViewModel MWVM { get; }
 
-        public ObservableCollectionExtended<ModListGalleryViewModel> ModLists { get; } = new();
+        public ObservableCollectionExtended<ModListTileViewModel> ModLists { get; } = new();
 
         private const string ALL_GAME_TYPE = "All";
 
-        //[Reactive]
-        //public IErrorResponse Error { get; set; }
+        [Reactive]
+        public IErrorResponse Error { get; set; }
 
         [Reactive]
         public string Search { get; set; }
@@ -43,6 +56,9 @@ namespace Wabbajack.App.Wpf.Screens
         private readonly ObservableAsPropertyHelper<bool> _Loaded;
 
         private ModListGalleryFilterSettingsViewModel _settings;
+        private readonly Client _wjClient;
+        private readonly ILogger<ModListGalleryViewModel> _logger;
+        private readonly GameLocator _gameLocator;
 
         public bool Loaded => _Loaded.Value;
 
@@ -50,9 +66,12 @@ namespace Wabbajack.App.Wpf.Screens
         
         public ICommand BackCommand { get; }
 
-        public ModListGalleryViewModel(MainWindowViewModel mainWindowVM)
+        public ModListGalleryViewModel(ILogger<ModListGalleryViewModel> logger, MainWindowViewModel mainWindowVM, Client wjClient, GameLocator gameLocator)
             : base()
         {
+            _wjClient = wjClient;
+            _logger = logger;
+            _gameLocator = gameLocator;
 
             BackCommand = ReactiveCommand.Create(() =>
             {
@@ -89,15 +108,14 @@ namespace Wabbajack.App.Wpf.Screens
                 });
 
 
-            this.WhenAny(x => x.OnlyInstalled)
+            ReactiveUIExt.WhenAny(this, x => x.OnlyInstalled)
                 .Subscribe(val =>
                 {
                     if(val)
                         GameType = ALL_GAME_TYPE;
                 })
                 .DisposeWith(CompositeDisposable);
-
-            /*
+            
             var sourceList = Observable.Return(Unit.Default)
                 .ObserveOn(RxApp.TaskpoolScheduler)
                 .SelectTask(async _ =>
@@ -105,62 +123,60 @@ namespace Wabbajack.App.Wpf.Screens
                     try
                     {
                         Error = null;
-                        var list = await ModlistMetadata.LoadFromGithub();
+                        var list = await _wjClient.LoadLists();
                         Error = ErrorResponse.Success;
                         return list
-                            .AsObservableChangeSet(x => x.DownloadMetadata?.Hash ?? Hash.Empty);
+                            .AsObservableChangeSet(x => x.DownloadMetadata?.Hash ?? default);
                     }
                     catch (Exception ex)
                     {
-                        Utils.Error(ex);
+                        _logger.LogError(ex, "While loading modlists");
                         Error = ErrorResponse.Fail(ex);
                         return Observable.Empty<IChangeSet<ModlistMetadata, Hash>>();
                     }
                 })
                 // Unsubscribe and release when not active
-                .FlowSwitch(
-                    this.WhenAny(x => x.IsActive),
+                .FlowSwitch(this.IsActivated,
                     valueWhenOff: Observable.Return(ChangeSet<ModlistMetadata, Hash>.Empty))
                 .Switch()
                 .RefCount();
-
+            
             _Loaded = sourceList.CollectionCount()
                 .Select(c => c > 0)
                 .ToProperty(this, nameof(Loaded));
 
             // Convert to VM and bind to resulting list
-            sourceList
-                .ObserveOnGuiThread()
-                .Transform(m => new ModListMetadataVM(this, m))
+            ReactiveUIExt.ObserveOnGuiThread(sourceList)
+                .Transform(m => new ModListTileViewModel(this, m))
                 .DisposeMany()
                 // Filter only installed
-                .Filter(this.WhenAny(x => x.OnlyInstalled)
-                    .Select<bool, Func<ModListMetadataVM, bool>>(onlyInstalled => (vm) =>
+                .Filter(ReactiveUIExt.WhenAny(this, x => x.OnlyInstalled)
+                    .Select<bool, Func<ModListTileViewModel, bool>>(onlyInstalled => (vm) =>
                     {
                         if (!onlyInstalled) return true;
                         if (!GameRegistry.Games.TryGetValue(vm.Metadata.Game, out var gameMeta)) return false;
-                        return gameMeta.IsInstalled;
+                        return _gameLocator.IsInstalled(gameMeta.Game);
                     }))
                 // Filter on search box
-                .Filter(this.WhenAny(x => x.Search)
+                .Filter(ReactiveUIExt.WhenAny(this, x => x.Search)
                     .Debounce(TimeSpan.FromMilliseconds(150), RxApp.MainThreadScheduler)
-                    .Select<string, Func<ModListMetadataVM, bool>>(search => (vm) =>
+                    .Select<string, Func<ModListTileViewModel, bool>>(search => (vm) =>
                     {
                         if (string.IsNullOrWhiteSpace(search)) return true;
                         return vm.Metadata.Title.ContainsCaseInsensitive(search) || vm.Metadata.tags.Any(t => t.ContainsCaseInsensitive(search));
                     }))
-                .Filter(this.WhenAny(x => x.ShowNSFW)
-                    .Select<bool, Func<ModListMetadataVM, bool>>(showNSFW => vm =>
+                .Filter(ReactiveUIExt.WhenAny(this, x => x.ShowNSFW)
+                    .Select<bool, Func<ModListTileViewModel, bool>>(showNSFW => vm =>
                     {
                         if (!vm.Metadata.NSFW) return true;
                         return vm.Metadata.NSFW && showNSFW;
                     }))
-                .Filter(this.WhenAny(x => x.ShowUtilityLists)
-                    .Select<bool, Func<ModListMetadataVM, bool>>(showUtilityLists => vm => showUtilityLists ? vm.Metadata.UtilityList : !vm.Metadata.UtilityList))
+                .Filter(ReactiveUIExt.WhenAny(this, x => x.ShowUtilityLists)
+                    .Select<bool, Func<ModListTileViewModel, bool>>(showUtilityLists => vm => showUtilityLists ? vm.Metadata.UtilityList : !vm.Metadata.UtilityList))
                 // Filter by Game
-                .Filter(this.WhenAny(x => x.GameType)
+                .Filter(ReactiveUIExt.WhenAny(this, x => x.GameType)
                     .Debounce(TimeSpan.FromMilliseconds(150), RxApp.MainThreadScheduler)
-                    .Select<string, Func<ModListMetadataVM, bool>>(GameType => (vm) =>
+                    .Select<string, Func<ModListTileViewModel, bool>>(GameType => (vm) =>
                     {
                         if (GameType == ALL_GAME_TYPE)
                             return true;
@@ -175,7 +191,7 @@ namespace Wabbajack.App.Wpf.Screens
                 .DisposeWith(CompositeDisposable);
 
             // Extra GC when navigating away, just to immediately clean up modlist metadata
-            this.WhenAny(x => x.IsActive)
+            ReactiveUIExt.WhenAny(this, x => x.IsActive)
                 .Where(x => !x)
                 .Skip(1)
                 .Delay(TimeSpan.FromMilliseconds(50), RxApp.MainThreadScheduler)
@@ -184,7 +200,6 @@ namespace Wabbajack.App.Wpf.Screens
                     GC.Collect();
                 })
                 .DisposeWith(CompositeDisposable);
-                */
         }
 
         //public override void Unload()

@@ -9,6 +9,7 @@
 
     <ItemGroup>
         <PackageReference Include="CefNet.Wpf" Version="97.0.21326.1706" />
+        <PackageReference Include="DynamicData" Version="7.4.3" />
         <PackageReference Include="GitInfo" Version="2.2.0" />
         <PackageReference Include="MahApps.Metro" Version="2.4.9" />
         <PackageReference Include="MahApps.Metro.IconPacks" Version="4.11.0" />
@@ -16,6 +17,7 @@
         <PackageReference Include="ReactiveUI" Version="17.0.1" />
         <PackageReference Include="ReactiveUI.Fody" Version="17.0.1" />
         <PackageReference Include="ReactiveUI.WPF" Version="17.0.1" />
+        <PackageReference Include="System.Reactive" Version="5.0.0" />
     </ItemGroup>
 
     <ItemGroup>

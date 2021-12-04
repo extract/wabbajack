@@ -1,6 +1,9 @@
 ﻿using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using ReactiveUI;
+using Wabbajack.App.Wpf.Extensions;
 using Wabbajack.App.Wpf.Support;
+using ReactiveUIExt = Wabbajack.App.Wpf.Extensions.ReactiveUIExt;
 
 namespace Wabbajack.App.Wpf.Screens
 {
@@ -13,15 +16,18 @@ namespace Wabbajack.App.Wpf.Screens
             this.WhenActivated(dispose =>
             {
                 
-                this.WhenAny(x => x.ViewModel.BackCommand)
+                ReactiveUIExt.WhenAny(this, x => x.ViewModel.BackCommand)
                     .BindToStrict(this, x => x.BackButton.Command)
+                    .DisposeWith(dispose);
+                
+                ReactiveUIExt.WhenAny(this, x => x.ViewModel.ModLists)
+                    .Select(v => v)
+                    .BindToStrict(this, x => x.ModListGalleryControl.ItemsSource)
                     .DisposeWith(dispose);
                 
                 /*
 
-                this.WhenAny(x => x.ViewModel.ModLists)
-                    .BindToStrict(this, x => x.ModListGalleryControl.ItemsSource)
-                    .DisposeWith(dispose);
+
                 Observable.CombineLatest(
                         this.WhenAny(x => x.ViewModel.Error),
                         this.WhenAny(x => x.ViewModel.Loaded),

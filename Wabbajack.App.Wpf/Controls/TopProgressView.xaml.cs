@@ -2,7 +2,9 @@ using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Windows;
 using ReactiveUI;
+using Wabbajack.App.Wpf.Extensions;
 using Wabbajack.App.Wpf.Support;
+using ReactiveUIExt = Wabbajack.App.Wpf.Extensions.ReactiveUIExt;
 
 namespace Wabbajack.App.Wpf.Controls
 {
@@ -56,53 +58,53 @@ namespace Wabbajack.App.Wpf.Controls
             InitializeComponent();
             this.WhenActivated(dispose =>
             {
-                this.WhenAny(x => x.ProgressPercent)
+                ReactiveUIExt.WhenAny(this, x => x.ProgressPercent)
                     .Select(x => 0.3 + x * 0.7)
                     .BindToStrict(this, x => x.LargeProgressBar.Opacity)
                     .DisposeWith(dispose);
-                this.WhenAny(x => x.ProgressPercent)
+                ReactiveUIExt.WhenAny(this, x => x.ProgressPercent)
                     .BindToStrict(this, x => x.LargeProgressBar.Value)
                     .DisposeWith(dispose);
-                this.WhenAny(x => x.ProgressPercent)
+                ReactiveUIExt.WhenAny(this, x => x.ProgressPercent)
                     .BindToStrict(this, x => x.BottomProgressBarDarkGlow.Value)
                     .DisposeWith(dispose);
-                this.WhenAny(x => x.ProgressPercent)
+                ReactiveUIExt.WhenAny(this, x => x.ProgressPercent)
                     .BindToStrict(this, x => x.LargeProgressBarTopGlow.Value)
                     .DisposeWith(dispose);
-                this.WhenAny(x => x.ProgressPercent)
+                ReactiveUIExt.WhenAny(this, x => x.ProgressPercent)
                     .BindToStrict(this, x => x.BottomProgressBarBrightGlow1.Value)
                     .DisposeWith(dispose);
-                this.WhenAny(x => x.ProgressPercent)
+                ReactiveUIExt.WhenAny(this, x => x.ProgressPercent)
                     .BindToStrict(this, x => x.BottomProgressBarBrightGlow2.Value)
                     .DisposeWith(dispose);
-                this.WhenAny(x => x.ProgressPercent)
+                ReactiveUIExt.WhenAny(this, x => x.ProgressPercent)
                     .BindToStrict(this, x => x.BottomProgressBar.Value)
                     .DisposeWith(dispose);
-                this.WhenAny(x => x.ProgressPercent)
+                ReactiveUIExt.WhenAny(this, x => x.ProgressPercent)
                     .BindToStrict(this, x => x.BottomProgressBarHighlight.Value)
                     .DisposeWith(dispose);
 
-                this.WhenAny(x => x.OverhangShadow)
+                ReactiveUIExt.WhenAny(this, x => x.OverhangShadow)
                     .Select(x => x ? Visibility.Visible : Visibility.Collapsed)
                     .BindToStrict(this, x => x.OverhangShadowRect.Visibility)
                     .DisposeWith(dispose);
-                this.WhenAny(x => x.ShadowMargin)
+                ReactiveUIExt.WhenAny(this, x => x.ShadowMargin)
                     .DistinctUntilChanged()
                     .Select(x => x ? new Thickness(6, 0, 6, 0) : new Thickness(0))
                     .BindToStrict(this, x => x.OverhangShadowRect.Margin)
                     .DisposeWith(dispose);
-                this.WhenAny(x => x.Title)
+                ReactiveUIExt.WhenAny(this, x => x.Title)
                     .BindToStrict(this, x => x.TitleText.Text)
                     .DisposeWith(dispose);
-                this.WhenAny(x => x.StatePrefixTitle)
+                ReactiveUIExt.WhenAny(this, x => x.StatePrefixTitle)
                     .Select(x => x == null ? Visibility.Visible : Visibility.Collapsed)
                     .BindToStrict(this, x => x.PrefixSpacerRect.Visibility)
                     .DisposeWith(dispose);
-                this.WhenAny(x => x.StatePrefixTitle)
+                ReactiveUIExt.WhenAny(this, x => x.StatePrefixTitle)
                     .Select(x => x == null ? Visibility.Collapsed : Visibility.Visible)
                     .BindToStrict(this, x => x.StatePrefixText.Visibility)
                     .DisposeWith(dispose);
-                this.WhenAny(x => x.StatePrefixTitle)
+                ReactiveUIExt.WhenAny(this, x => x.StatePrefixTitle)
                     .BindToStrict(this, x => x.StatePrefixText.Text)
                     .DisposeWith(dispose);
             });

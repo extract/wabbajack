@@ -15,6 +15,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using ReactiveUI;
+using Wabbajack.App.Wpf.Extensions;
 using Wabbajack.Common;
 
 namespace Wabbajack.App.Wpf.Controls
@@ -32,7 +33,7 @@ namespace Wabbajack.App.Wpf.Controls
                 this.MarkAsNeeded<ModListTileView, ModListTileViewModel, bool>(this.ViewModel, x => x.IsBroken);
                 this.MarkAsNeeded<ModListTileView, ModListTileViewModel, bool>(this.ViewModel, x => x.Exists);
                 this.MarkAsNeeded<ModListTileView, ModListTileViewModel, string>(this.ViewModel, x => x.Metadata.Links.ImageUri);
-                /*
+                
                 this.WhenAny(x => x.ViewModel.ProgressPercent)
                     .Select(p => p.Value)
                     .BindToStrict(this, x => x.DownloadProgressBar.Value)
@@ -73,7 +74,7 @@ namespace Wabbajack.App.Wpf.Controls
                     .Select(x => x ? Visibility.Visible : Visibility.Collapsed)
                     .BindToStrict(this, x => x.LoadingProgress.Visibility)
                     .DisposeWith(dispose);
-                    */
+                    
             });
         }
     }

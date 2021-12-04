@@ -1,15 +1,32 @@
 using System;
 using System.Collections.Generic;
 using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 using ReactiveUI;
+using ReactiveUI.Fody.Helpers;
 
 namespace Wabbajack.App.Wpf.Support;
 
-public class ViewModel : ReactiveObject, IDisposable
+public class ViewModel : ReactiveObject, IDisposable, IActivatableViewModel
 {
+    public ViewModel()
+    {
+        Activator = new ViewModelActivator();
+
+        IsActivated.BindTo(this, vm => vm.IsActive).DisposeWith(CompositeDisposable);
+
+    }
+    public ViewModelActivator Activator { get; }
+
+    public IObservable<bool> IsActivated => Activator.Activated.Select(_ => true).Merge(
+        Activator.Deactivated.Select(_ => false));
+
     private readonly Lazy<CompositeDisposable> _compositeDisposable = new();
+    
+    [Reactive]
+    public bool IsActive { get; set; }
         
     [JsonIgnore]
     public CompositeDisposable CompositeDisposable => _compositeDisposable.Value;
@@ -31,4 +48,5 @@ public class ViewModel : ReactiveObject, IDisposable
         item = newItem;
         this.RaisePropertyChanged(propertyName);
     }
+
 }

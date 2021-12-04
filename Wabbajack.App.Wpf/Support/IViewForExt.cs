@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ReactiveUI;
 using Wabbajack.App.Wpf.Support;
+using ReactiveUIExt = Wabbajack.App.Wpf.Extensions.ReactiveUIExt;
 
 namespace Wabbajack
 {
@@ -99,8 +100,7 @@ namespace Wabbajack
             Expression<Func<TTarget, TValue>> property)
             where TTarget : class
         {
-            return @this
-                .ObserveOnGuiThread()
+            return ReactiveUIExt.ObserveOnGuiThread(@this)
                 .BindTo<TValue, TTarget, TValue>(target, property);
         }
 
