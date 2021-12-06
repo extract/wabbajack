@@ -48,6 +48,8 @@ namespace Wabbajack.App.Wpf
             services.AddTransient<ModListTileView>();
             services.AddTransient<ModListTileViewModel>();
 
+            services.AddSingleton<ImageCache>();
+
             services.AddOSIntegrated();
         }
 

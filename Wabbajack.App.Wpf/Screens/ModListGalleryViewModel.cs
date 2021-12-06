@@ -1,17 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
-using System.Reactive;
 using System.Reactive.Disposables;
-using System.Reactive.Linq;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using DynamicData;
-using DynamicData.Binding;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using Wabbajack.App.Wpf.Controls;
-using Wabbajack.App.Wpf.Extensions;
 using Wabbajack.App.Wpf.Interfaces;
 using Wabbajack.App.Wpf.Messages;
 using Wabbajack.App.Wpf.Support;
@@ -19,17 +17,18 @@ using Wabbajack.App.Wpf.ViewModels;
 using Wabbajack.Common;
 using Wabbajack.Downloaders.GameFile;
 using Wabbajack.DTOs;
-using Wabbajack.Hashing.xxHash64;
 using Wabbajack.Networking.WabbajackClientApi;
-using ReactiveUIExt = Wabbajack.App.Wpf.Extensions.ReactiveUIExt;
+using Wabbajack.VFS;
 
 namespace Wabbajack.App.Wpf.Screens
 {
     public class ModListGalleryViewModel : ViewModel, IScreenViewModel
     {
         public ModListGalleryViewModel MWVM { get; }
-
-        public ObservableCollectionExtended<ModListTileViewModel> ModLists { get; } = new();
+        
+        private readonly SourceCache<ModListTileViewModel, string> _sourceModLists = new(x => x.Metadata.Links.MachineURL);
+        public ReadOnlyObservableCollection<ModListTileViewModel> _filteredModLists;
+        public ReadOnlyObservableCollection<ModListTileViewModel> ModLists => _filteredModLists;
 
         private const string ALL_GAME_TYPE = "All";
 
@@ -59,24 +58,45 @@ namespace Wabbajack.App.Wpf.Screens
         private readonly Client _wjClient;
         private readonly ILogger<ModListGalleryViewModel> _logger;
         private readonly GameLocator _gameLocator;
+        private readonly Wabbajack.Services.OSIntegrated.Configuration _configuration;
+        private readonly FileHashCache _hashCache;
+        private readonly ImageCache _imageCache;
 
         public bool Loaded => _Loaded.Value;
 
         public ICommand ClearFiltersCommand { get; }
         
         public ICommand BackCommand { get; }
+        
 
-        public ModListGalleryViewModel(ILogger<ModListGalleryViewModel> logger, MainWindowViewModel mainWindowVM, Client wjClient, GameLocator gameLocator)
+
+        public ModListGalleryViewModel(ILogger<ModListGalleryViewModel> logger, MainWindowViewModel mainWindowVM, Client wjClient, 
+            GameLocator gameLocator, Wabbajack.Services.OSIntegrated.Configuration configuration, FileHashCache hashCache, 
+            ImageCache imageCache)
             : base()
         {
             _wjClient = wjClient;
             _logger = logger;
             _gameLocator = gameLocator;
+            _configuration = configuration;
+            _hashCache = hashCache;
+            _imageCache = imageCache;
 
             BackCommand = ReactiveCommand.Create(() =>
             {
                 MessageBus.Current.SendMessage(new NavigateBack());
             });
+            
+            this.WhenActivated(disposables =>
+            {
+                _sourceModLists.Connect()
+                    .Bind(out _filteredModLists)
+                    .Subscribe()
+                    .DisposeWith(disposables);
+                
+                LoadData().FireAndForget();
+            });
+            
 
             // load persistent filter settings
             /*
@@ -97,6 +117,7 @@ namespace Wabbajack.App.Wpf.Screens
             //    .Subscribe(_ => UpdateFiltersSettings())
             //    .DisposeWith(this.CompositeDisposable);
 
+            /*
             ClearFiltersCommand = ReactiveCommand.Create(
                 () =>
                 {
@@ -178,6 +199,7 @@ namespace Wabbajack.App.Wpf.Screens
                     .Debounce(TimeSpan.FromMilliseconds(150), RxApp.MainThreadScheduler)
                     .Select<string, Func<ModListTileViewModel, bool>>(GameType => (vm) =>
                     {
+                        return true;
                         if (GameType == ALL_GAME_TYPE)
                             return true;
                         if (string.IsNullOrEmpty(GameType))
@@ -186,7 +208,7 @@ namespace Wabbajack.App.Wpf.Screens
                         return GameType == vm.Metadata.Game.GetDescription<Game>().ToString();
 
                     }))
-                .Bind(ModLists)
+                .Bind(out _filteredModLists)
                 .Subscribe()
                 .DisposeWith(CompositeDisposable);
 
@@ -200,12 +222,35 @@ namespace Wabbajack.App.Wpf.Screens
                     GC.Collect();
                 })
                 .DisposeWith(CompositeDisposable);
+                */
         }
 
         //public override void Unload()
         //{
             //Error = null;
         //}
+        
+        private async Task LoadData()
+        {
+            //using var _ = LoadingLock.WithLoading();
+            var modlists = await _wjClient.LoadLists();
+            var summaries = (await _wjClient.GetListStatuses()).ToDictionary(m => m.MachineURL);
+            var vms = modlists.Select(m =>
+            {
+                if (!summaries.TryGetValue(m.Links.MachineURL, out var summary)) summary = new ModListSummary();
+
+                return new ModListTileViewModel(this, m, _configuration, _hashCache, _imageCache);
+            });
+
+            _sourceModLists.Edit(lsts =>
+            {
+                lsts.Clear();
+                lsts.AddOrUpdate(vms);
+            });
+
+            _logger.LogInformation("Loaded data for {Count} modlists", _sourceModLists.Count);
+        }
+
 
         private List<string> GetGameTypeEntries()
         {

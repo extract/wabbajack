@@ -1,8 +1,12 @@
-﻿using System;
+﻿
+
+using System;
 using System.Collections.Generic;
-using System.Reactive;
+using System.Drawing;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
@@ -10,13 +14,24 @@ using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using Wabbajack.App.Wpf.Screens;
 using Wabbajack.App.Wpf.Support;
-using Wabbajack.Downloaders;
+using Wabbajack.Common;
 using Wabbajack.DTOs;
 using Wabbajack.Paths;
+using Wabbajack.Paths.IO;
 using Wabbajack.RateLimiter;
+using Wabbajack.Services.OSIntegrated;
+using Wabbajack.VFS;
 
 namespace Wabbajack.App.Wpf.Controls
 {
+    
+    public enum ModListState
+    {
+        Downloaded,
+        NotDownloaded,
+        Downloading,
+        Disabled
+    }
 
     public struct ModListTag
     {
@@ -37,9 +52,13 @@ namespace Wabbajack.App.Wpf.Controls
         public ICommand ExecuteCommand { get; }
         
         public ICommand ModListContentsCommend { get; }
-
-        private readonly ObservableAsPropertyHelper<bool> _Exists;
-        public bool Exists => _Exists.Value;
+        
+        [Reactive]
+        public ModListState State { get; set; }
+        
+        [Reactive]
+        public bool Exists { get; set; }
+        
 
         public AbsolutePath Location { get; }
 
@@ -67,17 +86,30 @@ namespace Wabbajack.App.Wpf.Controls
         //[Reactive]
         //public IErrorResponse Error { get; private set; }
 
-        private readonly ObservableAsPropertyHelper<BitmapImage> _Image;
-        public BitmapImage Image => _Image.Value;
-
-        private readonly ObservableAsPropertyHelper<bool> _LoadingImage;
-        public bool LoadingImage => _LoadingImage.Value;
+        
+        [Reactive]
+        public BitmapSource Image { get; set; }
+        
+        public Uri ImageUri => new(Metadata.Links.ImageUri);
+        
+        [Reactive]
+        public bool LoadingImage { get; set; }
 
         private Subject<bool> IsLoadingIdle;
+        private readonly Configuration _configuration;
+        private readonly FileHashCache _hashCache;
+        private readonly ImageCache _imageCache;
 
-        public ModListTileViewModel(ModListGalleryViewModel parent, ModlistMetadata metadata)
+        public AbsolutePath ModListLocation => _configuration.ModListsDownloadLocation.Combine(Metadata.Links.MachineURL)
+            .WithExtension(Ext.Wabbajack);
+
+        public ModListTileViewModel(ModListGalleryViewModel parent, ModlistMetadata metadata, Configuration configuration,
+            FileHashCache hashCache, ImageCache imageCache)
         {
             _parent = parent;
+            _configuration = configuration;
+            _hashCache = hashCache;
+            _imageCache = imageCache;
             Metadata = metadata;
             //Location = LauncherUpdater.CommonFolder.Value.Combine("downloaded_mod_lists", Metadata.Links.MachineURL + (string)Consts.ModListExtension);
             ModListTagList = new List<ModListTag>();
@@ -96,6 +128,16 @@ namespace Wabbajack.App.Wpf.Controls
             OpenWebsiteCommand = ReactiveCommand.Create(() => UIUtils.OpenWebsite(new Uri($"https://www.wabbajack.org/#/modlists/info?machineURL={Metadata.Links.MachineURL}")));
 
             IsLoadingIdle = new Subject<bool>();
+
+            this.WhenAny(vm => vm.State)
+                .Select(s => s == ModListState.Downloaded)
+                .StartWith(false)
+                .BindTo(this, vm => vm.Exists)
+                .DisposeWith(CompositeDisposable);
+            
+            UpdateState().FireAndForget();
+            LoadImage().FireAndForget();
+
             /*
             ModListContentsCommend = ReactiveCommand.Create(async () =>
             {
@@ -172,22 +214,7 @@ namespace Wabbajack.App.Wpf.Controls
                 .Switch()
                 .Unit());
 
-            _Exists = Observable.Interval(TimeSpan.FromSeconds(0.5))
-                .Unit()
-                .StartWith(Unit.Default)
-                .FlowSwitch(_parent.WhenAny(x => x.IsActive))
-                .SelectAsync(async _ =>
-                {
-                    try
-                    {
-                        return !IsDownloading && !(await metadata.NeedsDownload(Location));
-                    }
-                    catch (Exception)
-                    {
-                        return true;
-                    }
-                })
-                .ToGuiProperty(this, nameof(Exists));
+
 
             var imageObs = Observable.Return(Metadata.Links.ImageUri)
                 .DownloadBitmapImage((ex) => Utils.Log($"Error downloading modlist image {Metadata.Title}"));
@@ -255,6 +282,35 @@ namespace Wabbajack.App.Wpf.Controls
                 */
             return true;
         }
+        
+                
+        public async Task LoadImage()
+        {
+            LoadingImage = true;
+            Image = await _imageCache.From(ImageUri, 540, 300);
+            LoadingImage = false;
+        }
+        
+        public async Task<ModListState> GetState()
+        {
+            if (Metadata.ForceDown || Metadata.ValidationSummary.HasFailures)
+                return ModListState.Disabled;
+        
+            var file = ModListLocation;
+            if (!file.FileExists())
+                return ModListState.NotDownloaded;
+
+            return await _hashCache.FileHashCachedAsync(file, CancellationToken.None) !=
+                   Metadata.DownloadMetadata?.Hash
+                ? ModListState.NotDownloaded
+                : ModListState.Downloaded;
+        }
+        
+        public async Task UpdateState()
+        {
+            State = await GetState();
+        }
+
     }
     
 }

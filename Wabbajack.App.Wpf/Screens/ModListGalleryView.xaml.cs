@@ -21,7 +21,6 @@ namespace Wabbajack.App.Wpf.Screens
                     .DisposeWith(dispose);
                 
                 ReactiveUIExt.WhenAny(this, x => x.ViewModel.ModLists)
-                    .Select(v => v)
                     .BindToStrict(this, x => x.ModListGalleryControl.ItemsSource)
                     .DisposeWith(dispose);
                 
