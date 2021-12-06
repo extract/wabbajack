@@ -35,7 +35,7 @@ namespace Wabbajack.App.Wpf.Controls
                 this.MarkAsNeeded<ModListTileView, ModListTileViewModel, bool>(this.ViewModel, x => x.Exists);
                 this.MarkAsNeeded<ModListTileView, ModListTileViewModel, string>(this.ViewModel, x => x.Metadata.Links.ImageUri);
                 
-                this.WhenAny(x => x.ViewModel.ProgressPercent)
+                this.WhenAny(x => x.ViewModel.Progress)
                     .Select(p => p.Value)
                     .BindToStrict(this, x => x.DownloadProgressBar.Value)
                     .DisposeWith(dispose);

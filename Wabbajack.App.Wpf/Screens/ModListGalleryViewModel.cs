@@ -15,9 +15,12 @@ using Wabbajack.App.Wpf.Messages;
 using Wabbajack.App.Wpf.Support;
 using Wabbajack.App.Wpf.ViewModels;
 using Wabbajack.Common;
+using Wabbajack.Downloaders;
 using Wabbajack.Downloaders.GameFile;
 using Wabbajack.DTOs;
+using Wabbajack.DTOs.JsonConverters;
 using Wabbajack.Networking.WabbajackClientApi;
+using Wabbajack.RateLimiter;
 using Wabbajack.VFS;
 
 namespace Wabbajack.App.Wpf.Screens
@@ -61,6 +64,9 @@ namespace Wabbajack.App.Wpf.Screens
         private readonly Wabbajack.Services.OSIntegrated.Configuration _configuration;
         private readonly FileHashCache _hashCache;
         private readonly ImageCache _imageCache;
+        private readonly DTOSerializer _dtos;
+        private readonly IResource<DownloadDispatcher> _downloadLimiter;
+        private readonly DownloadDispatcher _downloadDispatcher;
 
         public bool Loaded => _Loaded.Value;
 
@@ -72,6 +78,7 @@ namespace Wabbajack.App.Wpf.Screens
 
         public ModListGalleryViewModel(ILogger<ModListGalleryViewModel> logger, MainWindowViewModel mainWindowVM, Client wjClient, 
             GameLocator gameLocator, Wabbajack.Services.OSIntegrated.Configuration configuration, FileHashCache hashCache, 
+            DTOSerializer dtos, IResource<DownloadDispatcher> downloadLimiter, DownloadDispatcher downloadDispatcher,
             ImageCache imageCache)
             : base()
         {
@@ -81,6 +88,9 @@ namespace Wabbajack.App.Wpf.Screens
             _configuration = configuration;
             _hashCache = hashCache;
             _imageCache = imageCache;
+            _dtos = dtos;
+            _downloadLimiter = downloadLimiter;
+            _downloadDispatcher = downloadDispatcher;
 
             BackCommand = ReactiveCommand.Create(() =>
             {
@@ -239,7 +249,7 @@ namespace Wabbajack.App.Wpf.Screens
             {
                 if (!summaries.TryGetValue(m.Links.MachineURL, out var summary)) summary = new ModListSummary();
 
-                return new ModListTileViewModel(this, m, _configuration, _hashCache, _imageCache);
+                return new ModListTileViewModel(this, m, _configuration, _hashCache, _imageCache, _downloadDispatcher, _downloadLimiter, _dtos, _logger);
             });
 
             _sourceModLists.Edit(lsts =>

@@ -10,12 +10,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
+using Wabbajack.App.Wpf.Messages;
 using Wabbajack.App.Wpf.Screens;
 using Wabbajack.App.Wpf.Support;
 using Wabbajack.Common;
+using Wabbajack.Downloaders;
 using Wabbajack.DTOs;
+using Wabbajack.DTOs.JsonConverters;
 using Wabbajack.Paths;
 using Wabbajack.Paths.IO;
 using Wabbajack.RateLimiter;
@@ -45,7 +49,9 @@ namespace Wabbajack.App.Wpf.Controls
 
     public class ModListTileViewModel : ViewModel
     {
-        public ModlistMetadata Metadata { get; }
+        private ModlistMetadata _metadata;
+        public ModlistMetadata Metadata => _metadata;
+        
         private ModListGalleryViewModel _parent;
 
         public ICommand OpenWebsiteCommand { get; }
@@ -64,9 +70,6 @@ namespace Wabbajack.App.Wpf.Controls
 
         [Reactive]
         public List<ModListTag> ModListTagList { get; private set; }
-
-        [Reactive]
-        public Percent ProgressPercent { get; private set; }
 
         [Reactive]
         public bool IsBroken { get; private set; }
@@ -90,42 +93,54 @@ namespace Wabbajack.App.Wpf.Controls
         [Reactive]
         public BitmapSource Image { get; set; }
         
-        public Uri ImageUri => new(Metadata.Links.ImageUri);
+        public Uri ImageUri => new(_metadata.Links.ImageUri);
         
         [Reactive]
         public bool LoadingImage { get; set; }
+        
+        [Reactive]
+        public Percent Progress { get; set; } = Percent.Zero;
 
         private Subject<bool> IsLoadingIdle;
         private readonly Configuration _configuration;
         private readonly FileHashCache _hashCache;
         private readonly ImageCache _imageCache;
+        private readonly DownloadDispatcher _dispatcher;
+        private readonly IResource<DownloadDispatcher> _downloadLimiter;
+        private readonly ILogger _logger;
+        private readonly DTOSerializer _dtos;
 
-        public AbsolutePath ModListLocation => _configuration.ModListsDownloadLocation.Combine(Metadata.Links.MachineURL)
+        public AbsolutePath ModListLocation => _configuration.ModListsDownloadLocation.Combine(_metadata.Links.MachineURL)
             .WithExtension(Ext.Wabbajack);
 
         public ModListTileViewModel(ModListGalleryViewModel parent, ModlistMetadata metadata, Configuration configuration,
-            FileHashCache hashCache, ImageCache imageCache)
+            FileHashCache hashCache, ImageCache imageCache, DownloadDispatcher dispatcher, IResource<DownloadDispatcher> downloadLimiter,
+            DTOSerializer dtos, ILogger logger)
         {
             _parent = parent;
             _configuration = configuration;
             _hashCache = hashCache;
             _imageCache = imageCache;
-            Metadata = metadata;
+            _metadata = metadata;
+            _dispatcher = dispatcher;
+            _downloadLimiter = downloadLimiter;
+            _logger = logger;
+            _dtos = dtos;
             //Location = LauncherUpdater.CommonFolder.Value.Combine("downloaded_mod_lists", Metadata.Links.MachineURL + (string)Consts.ModListExtension);
             ModListTagList = new List<ModListTag>();
 
-            Metadata.tags.ForEach(tag =>
+            _metadata.tags.ForEach(tag =>
             {
                 ModListTagList.Add(new ModListTag(tag));
             });
             ModListTagList.Add(new ModListTag(metadata.Game.MetaData().HumanFriendlyGameName));
 
-            DownloadSizeText = "Download size : " + UIUtils.FormatBytes(Metadata.DownloadMetadata.SizeOfArchives);
-            InstallSizeText = "Installation size : " + UIUtils.FormatBytes(Metadata.DownloadMetadata.SizeOfInstalledFiles);
-            VersionText = "Modlist version : " + Metadata.Version;
+            DownloadSizeText = "Download size : " + UIUtils.FormatBytes(_metadata.DownloadMetadata!.SizeOfArchives);
+            InstallSizeText = "Installation size : " + UIUtils.FormatBytes(_metadata.DownloadMetadata!.SizeOfInstalledFiles);
+            VersionText = "Modlist version : " + _metadata.Version;
             IsBroken = metadata.ValidationSummary.HasFailures || metadata.ForceDown;
             //https://www.wabbajack.org/#/modlists/info?machineURL=eldersouls
-            OpenWebsiteCommand = ReactiveCommand.Create(() => UIUtils.OpenWebsite(new Uri($"https://www.wabbajack.org/#/modlists/info?machineURL={Metadata.Links.MachineURL}")));
+            OpenWebsiteCommand = ReactiveCommand.Create(() => UIUtils.OpenWebsite(new Uri($"https://www.wabbajack.org/#/modlists/info?machineURL={_metadata.Links.MachineURL}")));
 
             IsLoadingIdle = new Subject<bool>();
 
@@ -137,6 +152,22 @@ namespace Wabbajack.App.Wpf.Controls
             
             UpdateState().FireAndForget();
             LoadImage().FireAndForget();
+            
+            ExecuteCommand = ReactiveCommand.Create(() =>
+                {
+                    if (State == ModListState.Downloaded)
+                    {
+                        //MessageBus.Current.SendMessage(new StartInstallConfiguration(ModListLocation));
+                        //MessageBus.Current.SendMessage(NavigateTo.Create(new NavigateTo(typeof(InstallConfigurationViewModel))));
+                    }
+                    else
+                    {
+                        DownloadModList().FireAndForget();
+                    }
+                },
+                this.ObservableForProperty(t => t.State)
+                    .Select(c => c.Value != ModListState.Downloading && c.Value != ModListState.Disabled)
+                    .StartWith(true));
 
             /*
             ModListContentsCommend = ReactiveCommand.Create(async () =>
@@ -231,56 +262,43 @@ namespace Wabbajack.App.Wpf.Controls
 
 
 
-        private async Task<bool> Download()
+        private async Task DownloadModList()
         {
-            /*
-            ProgressPercent = Percent.Zero;
-            using (var queue = new WorkQueue(1))
-            using (queue.Status.Select(i => i.ProgressPercent)
-                .ObserveOnGuiThread()
-                .Subscribe(percent => ProgressPercent = percent))
+            State = ModListState.Downloading;
+            var state = _dispatcher.Parse(new Uri(_metadata.Links.Download));
+            var archive = new Archive
             {
-                var tcs = new TaskCompletionSource<bool>();
-                queue.QueueTask(async () =>
-                {
-                    try
-                    {
-                        IsDownloading = true;
-                        Utils.Log($"Starting Download of {Metadata.Links.MachineURL}");
-                        var downloader = DownloadDispatcher.ResolveArchive(Metadata.Links.Download);
-                        var result = await downloader.Download(
-                            new Archive(state: null!)
-                            {
-                                Name = Metadata.Title, Size = Metadata.DownloadMetadata?.Size ?? 0
-                            }, Location);
-                        Utils.Log($"Done downloading {Metadata.Links.MachineURL}");
+                State = state!,
+                Hash = _metadata.DownloadMetadata?.Hash ?? default,
+                Size = _metadata.DownloadMetadata?.Size ?? 0,
+                Name = ModListLocation.FileName.ToString()
+            };
 
-                        // Want to rehash to current file, even if failed?
-                        await Location.FileHashCachedAsync();
-                        Utils.Log($"Done hashing {Metadata.Links.MachineURL}");
+            using var job = await _downloadLimiter.Begin(state!.PrimaryKeyString, archive.Size, CancellationToken.None);
 
-                        await Metadata.ToJsonAsync(Location.WithExtension(Consts.ModlistMetadataExtension));
-                        
-                        tcs.SetResult(result);
-                    }
-                    catch (Exception ex)
-                    {
-                        Utils.Error(ex, $"Error Downloading of {Metadata.Links.MachineURL}");
-                        tcs.SetException(ex);
-                    }
-                    finally
-                    {
-                        IsDownloading = false;
-                    }
-                });
+            var hashTask = _dispatcher.Download(archive, ModListLocation, job, CancellationToken.None);
 
+            while (!hashTask.IsCompleted)
+            {
+                Progress = Percent.FactoryPutInRange(job.Current, job.Size ?? 0);
+                await Task.Delay(100);
+            }
 
-                Task.Run(async () => await Metrics.Send(Metrics.Downloading, Metadata.Title))
-                    .FireAndForget(ex => Utils.Error(ex, "Error sending download metric"));
+            var hash = await hashTask;
+            if (hash != _metadata.DownloadMetadata?.Hash)
+            {
+                _logger.LogWarning("Hash files didn't match after downloading modlist, deleting modlist");
+                if (ModListLocation.FileExists())
+                    ModListLocation.Delete();
+            }
 
-                return await tcs.Task;
-                */
-            return true;
+            _hashCache.FileHashWriteCache(ModListLocation, hash);
+
+            var metadataPath = ModListLocation.WithExtension(Ext.MetaData);
+            await metadataPath.WriteAllTextAsync(_dtos.Serialize(_metadata));
+
+            Progress = Percent.Zero;
+            await UpdateState();
         }
         
                 
@@ -293,7 +311,7 @@ namespace Wabbajack.App.Wpf.Controls
         
         public async Task<ModListState> GetState()
         {
-            if (Metadata.ForceDown || Metadata.ValidationSummary.HasFailures)
+            if (_metadata.ForceDown || _metadata.ValidationSummary.HasFailures)
                 return ModListState.Disabled;
         
             var file = ModListLocation;
@@ -301,7 +319,7 @@ namespace Wabbajack.App.Wpf.Controls
                 return ModListState.NotDownloaded;
 
             return await _hashCache.FileHashCachedAsync(file, CancellationToken.None) !=
-                   Metadata.DownloadMetadata?.Hash
+                   _metadata.DownloadMetadata?.Hash
                 ? ModListState.NotDownloaded
                 : ModListState.Downloaded;
         }
