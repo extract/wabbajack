@@ -49,6 +49,9 @@
             <DependentUpon>LogScreenView.axaml</DependentUpon>
         </Compile>
     </ItemGroup>
+    <ItemGroup>
+      <None Remove="Controls\TopProgressView.xaml" />
+    </ItemGroup>
 
     <Target Name="AferBuild" AfterTargets="Build" Condition="!Exists('$(ProjectDir)$(OutDir)swiftshader')">
         <Message Text="Downloading Cef" />
