@@ -1,4 +1,5 @@
-﻿using System.Reactive.Disposables;
+﻿using System;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Windows.Controls;
 using ReactiveUI;
@@ -31,7 +32,7 @@ namespace Wabbajack
                     .DisposeWith(disposables);
 
                 ViewModel.WhenAnyValue(vm => vm.InstallState)
-                    .Select(es => es == InstallState.Success ? Visibility.Visible : Visibility.Collapsed)
+                    .Select(es => es is InstallState.Success or InstallState.Failure ? Visibility.Visible : Visibility.Collapsed)
                     .BindToStrict(this, view => view.InstallComplete.Visibility)
                     .DisposeWith(disposables);
 

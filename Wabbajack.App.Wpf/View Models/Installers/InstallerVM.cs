@@ -267,11 +267,29 @@ public class InstallerVM : BackNavigatingVM, IBackNavigatingVM, ICpuStatusVM
 
                 TaskBarUpdate.Send(update.StatusText, TaskbarItemProgressState.Indeterminate, update.StepsProgress.Value);
             };
-            await installer.Begin(CancellationToken.None);
-            
-            TaskBarUpdate.Send($"Finished install of {ModList.Name}", TaskbarItemProgressState.Normal);
 
-            InstallState = InstallState.Success;
+            await Task.Run(async () =>
+            {
+                try
+                {
+                    var result = await installer.Begin(CancellationToken.None);
+                    if (!result)
+                    {
+                        InstallState = InstallState.Failure;
+                        return;
+                    }
+
+                    TaskBarUpdate.Send($"Finished install of {ModList.Name}", TaskbarItemProgressState.Normal);
+                    InstallState = InstallState.Success;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Install error: {Message}", ex.Message);
+                    InstallState = InstallState.Failure;
+                }
+            });   
+            
+
         }
         catch (Exception ex)
         {

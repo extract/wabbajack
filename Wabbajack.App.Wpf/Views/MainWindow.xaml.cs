@@ -45,6 +45,7 @@ namespace Wabbajack
                 };
 
                 MessageBus.Current.Listen<TaskBarUpdate>()
+                    .ObserveOnGuiThread()
                     .Subscribe(u =>
                     {
                         TaskbarItemInfo.Description = u.Description;
