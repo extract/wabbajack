@@ -70,7 +70,7 @@ public class FileExtractor
         HashSet<RelativePath>? onlyFiles = null,
         Action<Percent>? progressFunction = null)
     {
-        if (sFn is NativeFileStreamFactory) _logger.LogInformation("Extracting {file}", sFn.Name);
+        if (sFn is NativeFileStreamFactory) _logger.LogInformation("Extracting {File}", sFn.Name.FileName);
         await using var archive = await sFn.GetStream();
         var sig = await ArchiveSigs.MatchesAsync(archive);
         archive.Position = 0;
@@ -224,10 +224,13 @@ public class FileExtractor
                 IEnumerable<string> AllVariants(string input)
                 {
                     var forward = input.Replace("\\", "/");
+                    var underscore = input.Replace("\\", "_");
                     yield return $"\"{input}\"";
                     yield return $"\"\\{input}\"";
                     yield return $"\"{forward}\"";
                     yield return $"\"/{forward}\"";
+                    // For some buggy filesystems
+                    yield return $"\"{underscore}\"";
                 }
 
                 tmpFile = _manager.CreateFile();
@@ -235,16 +238,14 @@ public class FileExtractor
                     token);
                 process.Arguments = new object[]
                 {
-                    "x", "-bsp1", "-y", $"-o\"{dest}\"", source, $"@\"{tmpFile.Value.ToString()}\"", "-mmt=off"
+                    "x", "-bsp1", "-y", $"-o\"{dest}\"", source, $"@\"{tmpFile.Value.Path.ToString()}\"", "-mmt=off"
                 };
             }
             else
             {
                 process.Arguments = new object[] {"x", "-bsp1", "-y", $"-o\"{dest}\"", source, "-mmt=off"};
             }
-
-            _logger.LogInformation("{prog} {args}", process.Path, process.Arguments);
-
+            
             var totalSize = source.Size();
             var lastPercent = 0;
             job.Size = totalSize;
@@ -272,18 +273,11 @@ public class FileExtractor
 
             var exitCode = await process.Start();
 
-
-            /*
             if (exitCode != 0)
             {
-                Utils.ErrorThrow(new _7zipReturnError(exitCode, source, dest, ""));
+                throw new SevenZipReturnError(exitCode, source, dest);
             }
-            else
-            {
-                Utils.Status($"Extracting {source.FileName} - done", Percent.One, alsoLog: true);
-            }*/
 
-            
             job.Dispose();
             var results = await dest.Path.EnumerateFiles()
                 .PMapAll(async f =>
