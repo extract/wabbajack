@@ -49,65 +49,65 @@ public class DownloadCef : IVerb
 
     public async Task<int> Run(AbsolutePath folder, bool force = false)
     {
-        if (folder == default) folder = KnownFolders.EntryPoint;
+        // if (folder == default) folder = KnownFolders.EntryPoint;
 
-        var cefNet = folder.Combine("CefNet.dll");
-        if (!cefNet.FileExists())
-        {
-            _logger.LogError("Cannot find CefNet.dll in {folder}", folder);
-            return 1;
-        }
+        // var cefNet = folder.Combine("CefNet.dll");
+        // if (!cefNet.FileExists())
+        // {
+        //     _logger.LogError("Cannot find CefNet.dll in {folder}", folder);
+        //     return 1;
+        // }
 
-        var version = Version.Parse(FileVersionInfo.GetVersionInfo(cefNet.ToString()).FileVersion!);
-        var downloadVersion = $"{version.Major}.{version.Minor}";
-        var runtime = RuntimeInformation.RuntimeIdentifier;
-        if (folder.Combine("libcef.dll").FileExists() && !force)
-        {
-            _logger.LogInformation("Not downloading, cef already exists");
-            return 0;
-        }
+        // var version = Version.Parse(FileVersionInfo.GetVersionInfo(cefNet.ToString()).FileVersion!);
+        // var downloadVersion = $"{version.Major}.{version.Minor}";
+        // var runtime = RuntimeInformation.RuntimeIdentifier;
+        // if (folder.Combine("libcef.dll").FileExists() && !force)
+        // {
+        //     _logger.LogInformation("Not downloading, cef already exists");
+        //     return 0;
+        // }
 
-        _logger.LogInformation("Downloading Cef version {version} for {runtime}", downloadVersion, runtime);
+        // _logger.LogInformation("Downloading Cef version {version} for {runtime}", downloadVersion, runtime);
 
-        var versions = await CefCDNResponse.Load(_httpClient);
+        // var versions = await CefCDNResponse.Load(_httpClient);
 
-        var findSource = versions.FindSource(downloadVersion);
+        // var findSource = versions.FindSource(downloadVersion);
 
-        var fileUri = new Uri($"https://cef-builds.spotifycdn.com/{findSource.Name}");
+        // var fileUri = new Uri($"https://cef-builds.spotifycdn.com/{findSource.Name}");
 
-        var parsed = _dispatcher.Parse(fileUri);
-        var tempFile = folder.Combine(findSource.Name);
-        await _dispatcher.Download(new Archive {State = parsed!}, tempFile, CancellationToken.None);
+        // var parsed = _dispatcher.Parse(fileUri);
+        // var tempFile = folder.Combine(findSource.Name);
+        // await _dispatcher.Download(new Archive {State = parsed!}, tempFile, CancellationToken.None);
 
-        {
-            _logger.LogInformation("Extracting {file}", tempFile);
+        // {
+        //     _logger.LogInformation("Extracting {file}", tempFile);
 
-            await using var istream = tempFile.Open(FileMode.Open, FileAccess.Read, FileShare.Read);
-            await using var bzip2 = new BZip2InputStream(istream);
-            await using var tar = new TarInputStream(bzip2, Encoding.UTF8);
-            var prefix = tempFile.FileName.WithoutExtension().WithoutExtension().Combine("Release");
-            var fullPrefix = prefix.RelativeTo(folder);
-            while (true)
-            {
-                var entry = tar.GetNextEntry();
-                if (entry == null) break;
+        //     await using var istream = tempFile.Open(FileMode.Open, FileAccess.Read, FileShare.Read);
+        //     await using var bzip2 = new BZip2InputStream(istream);
+        //     await using var tar = new TarInputStream(bzip2, Encoding.UTF8);
+        //     var prefix = tempFile.FileName.WithoutExtension().WithoutExtension().Combine("Release");
+        //     var fullPrefix = prefix.RelativeTo(folder);
+        //     while (true)
+        //     {
+        //         var entry = tar.GetNextEntry();
+        //         if (entry == null) break;
 
-                var path = entry.Name.ToRelativePath();
+        //         var path = entry.Name.ToRelativePath();
 
-                if (path.InFolder(prefix) && entry.Size > 0)
-                {
-                    var outputPath = path.RelativeTo(folder).RelativeTo(fullPrefix).RelativeTo(folder);
-                    outputPath.Parent.CreateDirectory();
+        //         if (path.InFolder(prefix) && entry.Size > 0)
+        //         {
+        //             var outputPath = path.RelativeTo(folder).RelativeTo(fullPrefix).RelativeTo(folder);
+        //             outputPath.Parent.CreateDirectory();
 
-                    _logger.LogInformation("Extracting {FileName} to {Folder}", outputPath.FileName,
-                        outputPath.RelativeTo(folder));
-                    await using var os = outputPath.Open(FileMode.Create, FileAccess.Write);
-                    tar.CopyEntryContents(os);
-                }
-            }
-        }
+        //             _logger.LogInformation("Extracting {FileName} to {Folder}", outputPath.FileName,
+        //                 outputPath.RelativeTo(folder));
+        //             await using var os = outputPath.Open(FileMode.Create, FileAccess.Write);
+        //             tar.CopyEntryContents(os);
+        //         }
+        //     }
+        // }
 
-        tempFile.Delete();
+        // tempFile.Delete();
 
         return 0;
     }

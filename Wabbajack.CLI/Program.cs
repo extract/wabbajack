@@ -60,9 +60,13 @@ internal class Program
                 services.AddSingleton<IVerb, Decrypt>();
                 services.AddSingleton<IVerb, ValidateLists>();
                 services.AddSingleton<IVerb, DownloadCef>();
+                services.AddSingleton<IVerb, DownloadModList>();
                 services.AddSingleton<IVerb, DownloadUrl>();
-                services.AddSingleton<IVerb, GenerateMetricsReports>();
                 services.AddSingleton<IVerb, ForceHeal>();
+                services.AddSingleton<IVerb, GenerateMetricsReports>();
+                services.AddSingleton<IVerb, InstallModList>();
+                services.AddSingleton<IVerb, ListModLists>();
+                services.AddSingleton<IVerb, LoginManager>();
                 services.AddSingleton<IVerb, MirrorFile>();
                 services.AddSingleton<IVerb, SteamLogin>();
                 services.AddSingleton<IVerb, SteamAppDumpInfo>();
