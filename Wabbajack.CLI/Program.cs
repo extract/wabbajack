@@ -69,6 +69,7 @@ internal class Program
                 services.AddSingleton<IVerb, LoginManager>();
                 services.AddSingleton<IVerb, MirrorFile>();
                 services.AddSingleton<IVerb, SteamLogin>();
+                services.AddSingleton<IVerb, ListModLists>();
                 services.AddSingleton<IVerb, SteamAppDumpInfo>();
                 services.AddSingleton<IVerb, SteamDownloadFile>();
                 services.AddSingleton<IVerb, UploadToNexus>();

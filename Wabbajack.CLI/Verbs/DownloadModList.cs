@@ -87,8 +87,8 @@ public class DownloadModList : IVerb
         };
 
         _logger.LogInformation("Downloading {primaryKeyString}", state.PrimaryKeyString);
-        var hash = await _dispatcher.Download(archive, outputPath, token);
 
+	var hash = await _dispatcher.Download(archive, outputPath, token);
         if (hash != modList.DownloadMetadata.Hash)
         {
             _logger.LogCritical("Downloaded modlist was {actual} expected {expected}", hash,
@@ -97,7 +97,6 @@ public class DownloadModList : IVerb
         }
 
         _logger.LogInformation("Successfully downloaded {Title} with {hash}", modList.Title, hash);
-        //await outputPath.Combine(".tmp").MoveToAsync(outputPath, true, token);
         Console.WriteLine("File downloaded to " + outputPath);
         //await archiveManager.Ingest(outputPath, token);
         return hash;
