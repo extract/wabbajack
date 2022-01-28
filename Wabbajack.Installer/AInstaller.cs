@@ -367,7 +367,7 @@ public abstract class AInstaller<T>
         _logger.LogInformation("Looking for files to hash");
 
         var allFiles = _configuration.Downloads.EnumerateFiles()
-            .Concat(_gameLocator.GameLocation(_configuration.Game).EnumerateFiles())
+            .Concat(_configuration.GameFolder.EnumerateFiles())
             .ToList();
         
         var hashDict = allFiles.GroupBy(f => f.Size()).ToDictionary(g => g.Key);

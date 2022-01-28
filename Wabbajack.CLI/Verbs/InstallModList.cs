@@ -1,11 +1,14 @@
 using System;
 using System.CommandLine;
 using System.CommandLine.Invocation;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Timers;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Wabbajack.Common;
 using Wabbajack.Downloaders;
 using Wabbajack.DTOs;
 using Wabbajack.Installer;
@@ -17,6 +20,10 @@ using Wabbajack.CLI.Services;
 using Wabbajack.Downloaders.GameFile;
 using Wabbajack.DTOs.JsonConverters;
 using Wabbajack.Services.OSIntegrated;
+using Wabbajack.RateLimiter;
+using Wabbajack.DTOs.DownloadStates;
+
+using Timer = System.Timers.Timer;
 
 namespace Wabbajack.CLI.Verbs;
 public enum InstallState
@@ -28,6 +35,9 @@ public enum InstallState
 }
 public class InstallModList : IVerb
 {
+    private readonly Timer _timer;
+    private StatusReport[] _prevReport;
+    private int _prevWindowWidth;
     private readonly Client _wjClient;
     private readonly DownloadDispatcher _dispatcher;
     private readonly ILogger<ValidateLists> _logger;
@@ -37,8 +47,10 @@ public class InstallModList : IVerb
     private readonly IGameLocator _gameLocator;
     private readonly Wabbajack.Services.OSIntegrated.Configuration _configuration;
     private readonly Wabbajack.Installer.SystemParameters _systemParameters;
+    private readonly IResource[] _resources;
+    private readonly InstallerConfiguration _installerConfiguration;
+    private StatusUpdate _statusUpdate;
     private ModList _modList;
-    private ModlistMetadata _modListMetadata;
     private AbsolutePath _modListLocation;
     private AbsolutePath _installationDir;
     private AbsolutePath _downloadDir;
@@ -46,16 +58,24 @@ public class InstallModList : IVerb
 
     public InstallModList(ILogger<ValidateLists> logger, Client wjClient, DownloadDispatcher dispatcher,
                           DTOSerializer dtos, SettingsManager settingsManager, IServiceProvider serviceProvider,
-                          IGameLocator gameLocator, Wabbajack.Services.OSIntegrated.Configuration configuration)
+                          IGameLocator gameLocator, Wabbajack.Services.OSIntegrated.Configuration configuration,
+                          IEnumerable<IResource> resources, InstallerConfiguration config)
     {
+        _resources = resources.ToArray();
         _logger = logger;
         _wjClient = wjClient;
         _dispatcher = dispatcher;
+        _installerConfiguration = config;
         _dtos = dtos;
         _settingsManager = settingsManager;
         _serviceProvider = serviceProvider;
         _gameLocator = gameLocator;
-        _configuration = configuration;
+        _configuration = configuration;        
+        _prevReport = _resources.Select(x => (x.StatusReport)).ToArray();
+        _prevWindowWidth = 0;
+        _timer = new Timer();
+        _timer.Interval = 1000;
+        //_timer.Elapsed += Elapsed;
     }
 
     public Command MakeCommand()
@@ -73,7 +93,10 @@ public class InstallModList : IVerb
 
     private async Task<int> Run(AbsolutePath output, String input, String install_dir, String download_dir, String game_dir)
     {
-        
+        LoadSystemParams();
+        if(_installerConfiguration.SystemParameters == null) {
+            Console.WriteLine("You need to set up your system parameters before running this script.\nSee [system-config --help]");
+        }
         _installationDir = Path.GetFullPath(install_dir).ToAbsolutePath();
         _downloadDir = download_dir != null ? Path.GetFullPath(download_dir).ToAbsolutePath() : Path.GetFullPath(install_dir).ToAbsolutePath().Combine("/Downloads");
         if (game_dir != null)
@@ -89,29 +112,6 @@ public class InstallModList : IVerb
         {
             _modList = await StandardInstaller.LoadFromFile(_dtos, _modListLocation);
             ModlistMetadata[] modlistMetadata = await _wjClient.LoadLists();
-            
-            // THIS IS A HORRIBLE IDEA :)
-            //_modListMetadata = 
-            var metaList = modlistMetadata.ToList().FindAll(x => _modList.Name.Contains(x.Title));
-            if (metaList.Count() == 0) {
-                throw new Exception("No modlist metadata was found for the mod");
-            }
-            if (metaList.Count() > 1)
-            {
-                Console.WriteLine("Multiple modlist with similar names were found. Please specify.");
-                for (int i = 0; i < metaList.Count(); i++)
-                {
-                    Console.WriteLine(i + ". " + metaList[i].Title);
-                }
-                // holy smugly
-                string line;
-                while ((line = Console.ReadLine()) != null) {}
-                _modListMetadata = metaList[Int32.Parse(line)];
-            }
-            else
-            {
-                _modListMetadata = metaList.First();
-            }            
         }
         catch (Exception ex)
         {
@@ -122,7 +122,8 @@ public class InstallModList : IVerb
         
         Console.WriteLine("Please read through the mods README: " + _modList!.Readme);
         Console.WriteLine("Now starting the installation");
-        
+        //Console.Write($"{Esc}[2J");
+        //_timer.Enabled = true;
         await BeginInstall();
         return 0;
     }
@@ -130,8 +131,10 @@ public class InstallModList : IVerb
     private async Task<int> BeginInstall() {
         try
         {
+            
             var installer = StandardInstaller.Create(_serviceProvider, new InstallerConfiguration
             {
+                SystemParameters = _installerConfiguration.SystemParameters,
                 Game = _modList.GameType,
                 Downloads = _downloadDir,
                 Install = _installationDir,
@@ -139,12 +142,14 @@ public class InstallModList : IVerb
                 ModlistArchive = _modListLocation,
                 GameFolder = _gameDir // TODO: This needs to be changed.
             });
+            
             installer.OnStatusUpdate = update =>
             {
-                Console.WriteLine("Status: " + update.StatusText);
-                Console.WriteLine("Procent: " + update.StepsProgress);
+                _statusUpdate = update;
             };
+            
             await installer.Begin(CancellationToken.None);
+            _timer.Close();
             Console.WriteLine("Finished the installation of the modlist");
             Console.WriteLine("IMPORTANT: READ THE README AT " + _modList!.Readme);
         }
@@ -156,34 +161,74 @@ public class InstallModList : IVerb
         return 0;
     }
 
-    private async Task<Hash> DownloadWabbajackFile(ModlistMetadata modList, ArchiveManager archiveManager,
-        CancellationToken token, AbsolutePath outputPath)
+    private void Elapsed(object? sender, ElapsedEventArgs e)
     {
-        var state = _dispatcher.Parse(new Uri(modList.Links.Download));
-        if (state == null)
-            _logger.LogCritical("Can't download {url}", modList.Links.Download);
+        // if(_prevWindowWidth != Console.WindowWidth)
+        // {
+            
+        //     _prevWindowWidth = Console.WindowWidth;
+        // }
+        Console.Write($"{Esc}[2J");
+        Console.Write($"{Esc}[H");
+        Console.Write($"{Esc}[2K");
+        Console.WriteLine(":: Status: " + _statusUpdate.StatusText);
+        //Console.Write($"{Esc}[{1}E");
 
-        var archive = new Archive
+        
+        var report = NextReport();
+        foreach (var (prev, next, resource) in _prevReport.Zip(report, _resources))
         {
-            State = state!,
-            Size = modList.DownloadMetadata!.Size,
-            Hash = modList.DownloadMetadata.Hash
-        };
 
-        _logger.LogInformation("Downloading {primaryKeyString}", state.PrimaryKeyString);
-        var hash = await _dispatcher.Download(archive, outputPath.Combine(".tmp"), token);
+            var throughput = next.Transferred - prev.Transferred;
+            if (throughput > 0)
+            {
+                Console.WriteLine($"{Esc}[2K:: {resource.Name}: [Running: {next.Running}, Pending: {next.Pending}] {throughput.ToFileSizeString()}/sec.");
+                Console.Write($"{Esc}[2K");
 
-        if (hash != modList.DownloadMetadata.Hash)
-        {
-            _logger.LogCritical("Downloaded modlist was {actual} expected {expected}", hash,
-                modList.DownloadMetadata.Hash);
-            throw new Exception();
+                var jobs = resource.Jobs.ToList();
+                foreach (var job in jobs./*Where(x => x.Current != 0).*/OrderByDescending(x => Percent.FactoryPutInRange(x.Current, (long)x.Size).Value))
+                {
+                    var modId = job.Description.Split('|')[2];
+                    var state = (Nexus)(_modList.Archives.First(x => x.Meta.Contains("modID=" + modId)).State);
+                    var fullName = String.IsNullOrEmpty(state.Name) ? job.Description : state.Name;
+                    //(Console.WindowWidth - whatever;
+                    var percent = Percent.FactoryPutInRange(job.Current, (long)job.Size);
+                    const int length = 75;
+                    var prc = (double)length * percent.Value;
+                    
+                    
+                    var hashtag = new String('#', (int)Math.Round(prc));
+                    var dots = new String('.', length - (int)Math.Round(prc));
+                    var bar = $"[{hashtag}{dots}] {percent.ToString().PadRight(4)}";
+                    var nameToPrint = " " + fullName.Substring(0, Math.Min((int)(Console.WindowWidth - bar.Length - 3), fullName.Length));
+                    Console.WriteLine($"{nameToPrint} {bar.PadLeft(Console.WindowWidth - nameToPrint.Length - 2)}");
+                    Console.Write($"{Esc}[2K");
+                }
+            }
         }
-
-        _logger.LogInformation("Successfully downloaded {Title} with {hash}", modList.Title, hash);
-        await outputPath.Combine(".tmp").MoveToAsync(outputPath, true, token);
-        Console.WriteLine("File downloaded to " + outputPath);
-        //await archiveManager.Ingest(outputPath, token);
-        return hash;
+        _prevReport = report;
     }
+
+    private StatusReport[] NextReport()
+    {
+        return _resources.Select(r => r.StatusReport).ToArray();
+    }
+
+    private void LoadSystemParams()
+    {
+        try
+        {
+            _installerConfiguration.SystemParameters = KnownFolders.CurrentDirectory
+                                                                   .Combine("system_parameters.json")
+                                                                   .Open(FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
+                                                                   .FromJson<Wabbajack.Installer.SystemParameters>()
+                                                                   .Result;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("File \"system_parameters.json\" could not be found. Run \"system-config\" first.");
+        }
+    }
+
+    public static string Esc { get; } = "\u001b";
 }

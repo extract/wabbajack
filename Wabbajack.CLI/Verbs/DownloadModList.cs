@@ -14,6 +14,7 @@ using Wabbajack.Paths.IO;
 using Wabbajack.Networking.WabbajackClientApi;
 using Wabbajack.Hashing.xxHash64;
 using Wabbajack.CLI.Services;
+using Wabbajack.RateLimiter;
 
 namespace Wabbajack.CLI.Verbs;
 
@@ -21,13 +22,16 @@ public class DownloadModList : IVerb
 {
     private readonly Client _wjClient;
     private readonly DownloadDispatcher _dispatcher;
-        private readonly ILogger<ValidateLists> _logger;
+    private readonly ILogger<ValidateLists> _logger;
+    private readonly IResource[] _resources;
 
-    public DownloadModList(Client wjClient, DownloadDispatcher dispatcher, ILogger<ValidateLists> logger)
+    public DownloadModList(Client wjClient, DownloadDispatcher dispatcher, ILogger<ValidateLists> logger,
+                           IEnumerable<IResource> resources)
     {
         _logger = logger;
         _wjClient = wjClient;
         _dispatcher = dispatcher;
+        _resources = resources.ToArray();
     }
 
     public Command MakeCommand()
@@ -62,11 +66,14 @@ public class DownloadModList : IVerb
         if (string.IsNullOrEmpty(output.ToString())) output = (Directory.GetCurrentDirectory() + "/../downloaded/" + Metadata.Links.MachineURL + ".wabbajack").ToAbsolutePath();// no worky KnownFolders.EntryPoint.Parent.Combine("downloaded_mod_lists", Metadata.Links.MachineURL).WithExtension(new Extension(".wabbajack"));
         else output = output.Combine(Metadata.Links.MachineURL + ".wabbajack");
         Console.WriteLine("Path: " + output.ToString());
+        // Check hash.
         if (output.FileExists()){
             Console.WriteLine(modList.First().Title + " is already downloaded.");
         }
         //Console.WriteLine("Downloading: " + modList.First().Title + " as " + Metadata.Links.Download + " into ");
-        
+        foreach(var resource in _resources) {
+            Console.WriteLine("Downloading: " + modList.First().Title + resource.StatusReport);
+        }
         await DownloadWabbajackFile(Metadata, archiveManager, token, output);
 
         return 0;
@@ -88,7 +95,7 @@ public class DownloadModList : IVerb
 
         _logger.LogInformation("Downloading {primaryKeyString}", state.PrimaryKeyString);
 
-	var hash = await _dispatcher.Download(archive, outputPath, token);
+	    var hash = await _dispatcher.Download(archive, outputPath, token);
         if (hash != modList.DownloadMetadata.Hash)
         {
             _logger.LogCritical("Downloaded modlist was {actual} expected {expected}", hash,

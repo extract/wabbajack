@@ -7,9 +7,11 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Octokit;
 using Wabbajack.CLI.TypeConverters;
 using Wabbajack.CLI.Verbs;
+using Wabbajack.CLI.Services;
 using Wabbajack.DTOs.GitHub;
 using Wabbajack.DTOs.Interventions;
 using Wabbajack.Networking.Http;
@@ -34,6 +36,10 @@ internal class Program
             new TypeConverterAttribute(typeof(ModListCategoryConverter)));
 
         var host = Host.CreateDefaultBuilder(Array.Empty<string>())
+            .ConfigureLogging(config =>
+            {
+                config.SetMinimumLevel(LogLevel.Warning);
+            })
             .ConfigureServices((host, services) =>
             {
                 services.AddSingleton(new JsonSerializerOptions());
@@ -52,7 +58,6 @@ internal class Program
                 services.AddOSIntegrated();
                 services.AddServerLib();
 
-
                 services.AddTransient<Context>();
                 services.AddSingleton<IVerb, HashFile>();
                 services.AddSingleton<IVerb, VFSIndexFolder>();
@@ -69,10 +74,12 @@ internal class Program
                 services.AddSingleton<IVerb, LoginManager>();
                 services.AddSingleton<IVerb, MirrorFile>();
                 services.AddSingleton<IVerb, SteamLogin>();
-                services.AddSingleton<IVerb, ListModLists>();
                 services.AddSingleton<IVerb, SteamAppDumpInfo>();
                 services.AddSingleton<IVerb, SteamDownloadFile>();
+                services.AddSingleton<IVerb, SystemConfig>();
                 services.AddSingleton<IVerb, UploadToNexus>();
+                
+                
 
                 services.AddSingleton<IUserInterventionHandler, UserInterventionHandler>();
             }).Build();
