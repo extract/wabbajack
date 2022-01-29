@@ -3,10 +3,7 @@ using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
-using Wabbajack.Downloaders;
 using Wabbajack.DTOs;
 using Wabbajack.Paths;
 using Wabbajack.Networking.WabbajackClientApi;
@@ -28,8 +25,6 @@ public class ListModLists : IVerb
         command.Add(new Option<AbsolutePath>(new[] {"-o", "-output"}, "Output file"));
         command.Add(new Option<String>(new[] {"-g", "--game"}, "Filter by game (see command \"list-games\")"));
         command.Add(new Option<bool>(new[] {"-v", "--verbose"}, "Show download sizes and other statistics"));
-        /*command.Add(new Option<bool>(new[] {"-i", "--installed-game"}, "Filter by installed games"));
-        command.Add(new Option<String>(new[] {"-t", "--tags"}, "Filter by tags"));*/
         command.Description = "Lists all modlists";
         command.Handler = CommandHandler.Create(Run);
         return command;

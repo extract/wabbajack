@@ -15,8 +15,6 @@ using Wabbajack.Installer;
 using Wabbajack.Paths;
 using Wabbajack.Paths.IO;
 using Wabbajack.Networking.WabbajackClientApi;
-using Wabbajack.Hashing.xxHash64;
-using Wabbajack.CLI.Services;
 using Wabbajack.Downloaders.GameFile;
 using Wabbajack.DTOs.JsonConverters;
 using Wabbajack.Services.OSIntegrated;
@@ -168,9 +166,7 @@ public class InstallModList : IVerb
             
         //     _prevWindowWidth = Console.WindowWidth;
         // }
-        Console.Write($"{Esc}[2J");
-        Console.Write($"{Esc}[H");
-        Console.Write($"{Esc}[2K");
+        Console.Write($"{Esc}[2J{Esc}[H{Esc}[2K");
         Console.WriteLine(":: Status: " + _statusUpdate.StatusText);
         //Console.Write($"{Esc}[{1}E");
 
@@ -186,7 +182,7 @@ public class InstallModList : IVerb
                 Console.Write($"{Esc}[2K");
 
                 var jobs = resource.Jobs.ToList();
-                foreach (var job in jobs./*Where(x => x.Current != 0).*/OrderByDescending(x => Percent.FactoryPutInRange(x.Current, (long)x.Size).Value))
+                foreach (var job in jobs.OrderByDescending(x => Percent.FactoryPutInRange(x.Current, (long)x.Size).Value))
                 {
                     var modId = job.Description.Split('|')[2];
                     var state = (Nexus)(_modList.Archives.First(x => x.Meta.Contains("modID=" + modId)).State);

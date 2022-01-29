@@ -1,23 +1,13 @@
 using System;
 using System.CommandLine;
 using System.CommandLine.Invocation;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Wabbajack.Downloaders;
-using Wabbajack.DTOs;
-using Wabbajack.DTOs.JsonConverters;
 using Wabbajack.Paths;
 using Wabbajack.Paths.IO;
-using Wabbajack.Networking.WabbajackClientApi;
-using Wabbajack.Hashing.xxHash64;
-using Wabbajack.CLI.Services;
-using Wabbajack.RateLimiter;
 using Wabbajack.Installer;
-using Wabbajack.Common;
 using System.Text.Json;
 
 namespace Wabbajack.CLI.Verbs;
@@ -27,7 +17,7 @@ public class SystemConfig : IVerb
     private readonly InstallerConfiguration _installerConfiguration;
     private readonly ILogger<ValidateLists> _logger;
 
-    public SystemConfig(Client wjClient, InstallerConfiguration config, ILogger<ValidateLists> logger)
+    public SystemConfig(InstallerConfiguration config, ILogger<ValidateLists> logger)
     {
         _logger = logger;
         _installerConfiguration = config;
@@ -36,8 +26,6 @@ public class SystemConfig : IVerb
     public Command MakeCommand()
     {
         var command = new Command("system-config");
-        /*command.Add(new Option<AbsolutePath>(new[] {"-o", "-output"}, "Output file (defaults to current directory)"));
-        command.Add(new Option<String>(new[] {"-t", "--title"}, "ModList title to download (run \"list-modlists\" command)"));*/
         command.Description = "Setup your configuration";
         command.Handler = CommandHandler.Create(Run);
         return command;
