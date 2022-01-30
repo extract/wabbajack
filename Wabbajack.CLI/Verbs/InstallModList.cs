@@ -68,19 +68,19 @@ public class InstallModList : IVerb
         _settingsManager = settingsManager;
         _serviceProvider = serviceProvider;
         _gameLocator = gameLocator;
-        _configuration = configuration;        
+        _configuration = configuration;
         _prevReport = _resources.Select(x => (x.StatusReport)).ToArray();
         _prevWindowWidth = 0;
         _timer = new Timer();
         _timer.Interval = 1000;
-        //_timer.Elapsed += Elapsed;
+        _timer.Elapsed += Elapsed;
     }
 
     public Command MakeCommand()
     {
         var command = new Command("install-modlist");
-        command.Add(new Option<AbsolutePath>(new[] { "-f", "--input" }, "Input file") {IsRequired = true});
-        command.Add(new Option<AbsolutePath>(new[] { "-i", "--install_dir" }, "Installation directory") {IsRequired = true});
+        command.Add(new Option<AbsolutePath>(new[] { "-f", "--input" }, "Input file") { IsRequired = true });
+        command.Add(new Option<AbsolutePath>(new[] { "-i", "--install_dir" }, "Installation directory") { IsRequired = true });
         command.Add(new Option<AbsolutePath>(new[] { "-d", "--download_dir" }, "Download directory (defaults to installation dir/Downloads)"));
         command.Add(new Option<AbsolutePath>(new[] { "-g", "--game_dir" }, "Game directory (default tries to autofind the game with the registry)"));
         //command.Add(new Option<String>(new[] { "-t", "--title" }, "ModList title to download (run \"list-modlists\" command)"));
@@ -92,7 +92,8 @@ public class InstallModList : IVerb
     private async Task<int> Run(AbsolutePath output, String input, String install_dir, String download_dir, String game_dir)
     {
         LoadSystemParams();
-        if(_installerConfiguration.SystemParameters == null) {
+        if (_installerConfiguration.SystemParameters == null)
+        {
             Console.WriteLine("You need to set up your system parameters before running this script.\nSee [system-config --help]");
         }
         _installationDir = Path.GetFullPath(install_dir).ToAbsolutePath();
@@ -117,19 +118,19 @@ public class InstallModList : IVerb
             Console.WriteLine("Failed to load modlist...");
             return 1;
         }
-        
+
         Console.WriteLine("Please read through the mods README: " + _modList!.Readme);
         Console.WriteLine("Now starting the installation");
-        //Console.Write($"{Esc}[2J");
-        //_timer.Enabled = true;
+
         await BeginInstall();
         return 0;
     }
 
-    private async Task<int> BeginInstall() {
+    private async Task<int> BeginInstall()
+    {
         try
         {
-            
+
             var installer = StandardInstaller.Create(_serviceProvider, new InstallerConfiguration
             {
                 SystemParameters = _installerConfiguration.SystemParameters,
@@ -138,18 +139,30 @@ public class InstallModList : IVerb
                 Install = _installationDir,
                 ModList = _modList,
                 ModlistArchive = _modListLocation,
-                GameFolder = _gameDir // TODO: This needs to be changed.
+                GameFolder = _gameDir // TODO(extract): incorperate GameFinder somehow?
             });
-            
+
             installer.OnStatusUpdate = update =>
             {
                 _statusUpdate = update;
             };
-            
-            await installer.Begin(CancellationToken.None);
+
+            Console.Write($"{Esc}[{Console.WindowHeight}B{Esc}[2J");
+            _timer.Enabled = true;
+
+            var success = await installer.Begin(CancellationToken.None);
+            _timer.Enabled = false;
             _timer.Close();
-            Console.WriteLine("Finished the installation of the modlist");
-            Console.WriteLine("IMPORTANT: READ THE README AT " + _modList!.Readme);
+            if (success)
+            {
+                Console.WriteLine("\nFinished the installation of the modlist");
+                Console.WriteLine("IMPORTANT: READ THE README AT " + _modList!.Readme);
+            }
+            else
+            {
+                Console.WriteLine("Failed to install the modlist, see output.");
+                Console.WriteLine("For more information you can re-run the command and redirect stderr to a file. ( %command% 2>errors.txt )");
+            }
         }
         catch (Exception ex)
         {
@@ -161,16 +174,13 @@ public class InstallModList : IVerb
 
     private void Elapsed(object? sender, ElapsedEventArgs e)
     {
-        // if(_prevWindowWidth != Console.WindowWidth)
-        // {
-            
-        //     _prevWindowWidth = Console.WindowWidth;
-        // }
-        Console.Write($"{Esc}[2J{Esc}[H{Esc}[2K");
+        // TODO(extract): This needs to allow errors to show up somehow.
+        //                but C# logger has really ugly errors.
+        //                Current solution is to log warns and above to stderr
+        //                User could redirect this into a file to debug issues?
+        Console.Write($"{Esc}[2J{Esc}[H");
         Console.WriteLine(":: Status: " + _statusUpdate.StatusText);
-        //Console.Write($"{Esc}[{1}E");
 
-        
         var report = NextReport();
         foreach (var (prev, next, resource) in _prevReport.Zip(report, _resources))
         {
@@ -182,17 +192,24 @@ public class InstallModList : IVerb
                 Console.Write($"{Esc}[2K");
 
                 var jobs = resource.Jobs.ToList();
-                foreach (var job in jobs.OrderByDescending(x => Percent.FactoryPutInRange(x.Current, (long)x.Size).Value))
+                foreach (var job in jobs.Where(x => x.Current != 0).OrderByDescending(x => Percent.FactoryPutInRange(x.Current, (long)x.Size).Value))
                 {
-                    var modId = job.Description.Split('|')[2];
-                    var state = (Nexus)(_modList.Archives.First(x => x.Meta.Contains("modID=" + modId)).State);
-                    var fullName = String.IsNullOrEmpty(state.Name) ? job.Description : state.Name;
-                    //(Console.WindowWidth - whatever;
+                    string fullName = job.Description;
+
+                    switch (job.Description.Split("+")[0].Split("|")[0])
+                    {
+                        case "NexusDownloader":
+                            fullName = NexusJobFormatter(job.Description);
+                            break;
+                        default:
+                            fullName = DefaultJobFormatter(job.Description);
+                            break;
+                    }
+
                     var percent = Percent.FactoryPutInRange(job.Current, (long)job.Size);
                     const int length = 75;
                     var prc = (double)length * percent.Value;
-                    
-                    
+
                     var hashtag = new String('#', (int)Math.Round(prc));
                     var dots = new String('.', length - (int)Math.Round(prc));
                     var bar = $"[{hashtag}{dots}] {percent.ToString().PadRight(4)}";
@@ -203,6 +220,26 @@ public class InstallModList : IVerb
             }
         }
         _prevReport = report;
+    }
+
+    private string NexusJobFormatter(string description)
+    {
+        var modId = description.Split('|')[2];
+        var fullName = description;
+
+        if ((_modList.Archives.First(x => x.Meta.Contains("modID=" + modId)).State).TypeName.Contains("Nexus"))
+        {
+            var state = (Nexus)(_modList.Archives.First(x => x.Meta.Contains("modID=" + modId)).State);
+            fullName = String.IsNullOrEmpty(state.Name) ? description : state.Name;
+        }
+
+        return fullName;
+    }
+
+    private string DefaultJobFormatter(string description)
+    {
+        var fullName = description.Split('|')[1].Split('/').Last();
+        return fullName;
     }
 
     private StatusReport[] NextReport()

@@ -38,7 +38,18 @@ internal class Program
         var host = Host.CreateDefaultBuilder(Array.Empty<string>())
             .ConfigureLogging(config =>
             {
-                config.SetMinimumLevel(LogLevel.Warning);
+                config.SetMinimumLevel(LogLevel.Warning)
+                      .AddFilter("Wabbajack.Installer.StandardInstaller", LogLevel.Information)
+                      .AddConsole(options =>
+                        {
+                            options.LogToStandardErrorThreshold = LogLevel.Warning;
+                        })
+                      .AddSimpleConsole(options =>
+                        {
+                            options.SingleLine = true;
+                            options.IncludeScopes = false;
+                            options.TimestampFormat = "HH:mm:ss ";
+                        });
             })
             .ConfigureServices((host, services) =>
             {
@@ -78,8 +89,8 @@ internal class Program
                 services.AddSingleton<IVerb, SteamDownloadFile>();
                 services.AddSingleton<IVerb, SystemConfig>();
                 services.AddSingleton<IVerb, UploadToNexus>();
-                
-                
+
+
 
                 services.AddSingleton<IUserInterventionHandler, UserInterventionHandler>();
             }).Build();

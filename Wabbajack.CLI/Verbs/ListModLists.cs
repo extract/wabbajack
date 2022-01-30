@@ -22,9 +22,9 @@ public class ListModLists : IVerb
     public Command MakeCommand()
     {
         var command = new Command("list-modlists");
-        command.Add(new Option<AbsolutePath>(new[] {"-o", "-output"}, "Output file"));
-        command.Add(new Option<String>(new[] {"-g", "--game"}, "Filter by game (see command \"list-games\")"));
-        command.Add(new Option<bool>(new[] {"-v", "--verbose"}, "Show download sizes and other statistics"));
+        command.Add(new Option<AbsolutePath>(new[] { "-o", "-output" }, "Output file"));
+        command.Add(new Option<String>(new[] { "-g", "--game" }, "Filter by game (see command \"list-games\")"));
+        command.Add(new Option<bool>(new[] { "-v", "--verbose" }, "Show download sizes and other statistics"));
         command.Description = "Lists all modlists";
         command.Handler = CommandHandler.Create(Run);
         return command;
@@ -35,7 +35,7 @@ public class ListModLists : IVerb
         var modListsInput = await _wjClient.LoadLists();
         List<ModlistMetadata> modLists = new List<ModlistMetadata>();
         modLists = modListsInput.ToList();
-        
+
         // Filters
         if (game != null && game != string.Empty) modLists = modLists.FindAll(x => x.Game.ToString().Contains(game, StringComparison.OrdinalIgnoreCase)).ToList();
 
@@ -47,7 +47,8 @@ public class ListModLists : IVerb
         var maxLengthGame = modLists.ToList().OrderByDescending(x => x.Game.ToString().Count()).First().Game.ToString().Count();
         var maxLengthTitle = modLists.ToList().OrderByDescending(x => x.Title.ToString().Count()).First().Title.ToString().Count();
 
-        foreach (var modList in modLists.ToList().OrderBy(x => x.Game.ToString()).ThenBy(x => x.Title)){
+        foreach (var modList in modLists.ToList().OrderBy(x => x.Game.ToString()).ThenBy(x => x.Title))
+        {
             if (modList.ForceDown) Console.ForegroundColor = ConsoleColor.Red;
             string nsfw = "";
             if (modList.NSFW) nsfw = " (NSFW) ";
@@ -57,7 +58,7 @@ public class ListModLists : IVerb
             if (verbose) Console.WriteLine(("ModList: " + FormatBytes(modList.DownloadMetadata!.Size)).PadRight(maxLengthGame + 2) + "Unpacked Size: " + FormatBytes(modList.DownloadMetadata.SizeOfInstalledFiles) + "\n");
             if (modList.ForceDown) Console.ResetColor();
         }
-        
+
         return 0;
     }
 
