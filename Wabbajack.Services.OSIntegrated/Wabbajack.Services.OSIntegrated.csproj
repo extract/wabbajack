@@ -8,18 +8,19 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="DeviceId" Version="6.0.0" />
+        <PackageReference Include="DeviceId" Version="6.2.0" />
         <PackageReference Include="GitInfo" Version="2.2.0">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="6.0.0" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="6.0.2-mauipre.1.22054.8" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\Wabbajack.Compiler\Wabbajack.Compiler.csproj" />
         <ProjectReference Include="..\Wabbajack.Downloaders.Dispatcher\Wabbajack.Downloaders.Dispatcher.csproj" />
         <ProjectReference Include="..\Wabbajack.Installer\Wabbajack.Installer.csproj" />
+        <ProjectReference Include="..\Wabbajack.Networking.BethesdaNet\Wabbajack.Networking.BethesdaNet.csproj" />
         <ProjectReference Include="..\Wabbajack.Networking.Discord\Wabbajack.Networking.Discord.csproj" />
         <ProjectReference Include="..\Wabbajack.Networking.Steam\Wabbajack.Networking.Steam.csproj" />
         <ProjectReference Include="..\Wabbajack.VFS\Wabbajack.VFS.csproj" />

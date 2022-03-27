@@ -89,6 +89,8 @@ internal class Program
                 services.AddSingleton<IVerb, SteamDownloadFile>();
                 services.AddSingleton<IVerb, SystemConfig>();
                 services.AddSingleton<IVerb, UploadToNexus>();
+                services.AddSingleton<IVerb, ListCreationClubContent>();
+                services.AddSingleton<IVerb, Extract>();
 
 
 
